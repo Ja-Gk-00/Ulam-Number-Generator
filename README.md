@@ -314,6 +314,11 @@ uv run pytest
 
 ---
 
+## Computed sequence of Ulam numbers
+
+The repository shares computed (through this module) **saved.bin** object of all computed Ulam numbers present to 25 billion.  
+User can load it and extend the computation, or just preform an easy analysis on Ulam numbers without a necessity to calculate it first. However, the object takes a lot of space in memory so it might not be feasible to use on machine with low amount of RAM.
+
 ## How it works
 
 The algorithm is based on Philip Gibbs, *"An efficient method for computing

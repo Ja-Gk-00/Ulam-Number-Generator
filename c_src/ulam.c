@@ -20,7 +20,7 @@
  *   a_off[0..count-1]                         (int32 * count)
  *   k_cap(uint64)  k[0..k_cap-1]             (uint32 * k_cap)
  *   track_pairs(int32)
- *   [pairs_count(uint64) pairs[0..pairs_count*2-1] (uint64 × pairs_count*2)]
+ *   [pairs_count(uint64) pairs[0..pairs_count*2-1] (uint64 * pairs_count*2)]
  * 
  */
 
@@ -29,6 +29,20 @@
 #include <string.h>
 #include <stdio.h>
 #include <inttypes.h>
+
+#define CHUNK_ELEMS(esz) ((size_t)(64 * 1024 * 1024 / (esz)))
+
+static int fwrite_all(const void *buf, size_t esz, size_t n, FILE *f) {
+    const char *p = (const char *)buf;
+    size_t chunk = CHUNK_ELEMS(esz);
+    while (n > 0) {
+        size_t batch = n < chunk ? n : chunk;
+        if (fwrite(p, esz, batch, f) != batch) return 0;
+        p += batch * esz;
+        n -= batch;
+    }
+    return 1;
+}
 
 #define MAGIC    0x554C414DU
 #define VERSION  4U
@@ -408,19 +422,24 @@ void ulam_close_adj_stream(UlamState *s) {
 }
 
 int ulam_save(UlamState *s, const char *path) {
-    FILE *f = fopen(path, "wb");
+    /* Write to a temp file first; rename to path only on success so a
+       failed/interrupted save never corrupts the existing file. */
+    char tmp[4096];
+    if ((size_t)snprintf(tmp, sizeof tmp, "%s.tmp", path) >= sizeof tmp) return 0;
+
+    FILE *f = fopen(tmp, "wb");
     if (!f) return 0;
 
     uint32_t hdr[2] = { MAGIC, VERSION };
-    if (fwrite(hdr,              4, 2,        f) != 2)        goto fail;
-    if (fwrite(&s->max_computed, 8, 1,        f) != 1)        goto fail;
+    if (fwrite(hdr,              4, 2, f) != 2)               goto fail;
+    if (fwrite(&s->max_computed, 8, 1, f) != 1)               goto fail;
     uint64_t cnt = (uint64_t)s->count;
-    if (fwrite(&cnt,             8, 1,        f) != 1)        goto fail;
-    if (fwrite(s->a_off,         4, s->count, f) != s->count) goto fail;
+    if (fwrite(&cnt,             8, 1, f) != 1)               goto fail;
+    if (!fwrite_all(s->a_off,    4, s->count, f))             goto fail;
 
     uint64_t kc = (uint64_t)s->k_cap;
-    if (fwrite(&kc,  8, 1,        f) != 1)        goto fail;
-    if (fwrite(s->k, 4, s->k_cap, f) != s->k_cap) goto fail;
+    if (fwrite(&kc,              8, 1, f) != 1)               goto fail;
+    if (!fwrite_all(s->k,        4, s->k_cap, f))             goto fail;
 
     int32_t tp = (int32_t)s->track_pairs;
     if (fwrite(&tp, 4, 1, f) != 1) goto fail;
@@ -428,14 +447,17 @@ int ulam_save(UlamState *s, const char *path) {
         uint64_t pc = (uint64_t)s->pairs_count;
         if (fwrite(&pc, 8, 1, f) != 1) goto fail;
         if (s->pairs_count > 0 &&
-            fwrite(s->pairs, 8, s->pairs_count * 2, f) != s->pairs_count * 2)
-            goto fail;
+            !fwrite_all(s->pairs, 8, s->pairs_count * 2, f))  goto fail;
     }
 
+    if (fflush(f) != 0) goto fail;
     fclose(f);
+    remove(path);
+    if (rename(tmp, path) != 0) { remove(tmp); return 0; }
     return 1;
 fail:
     fclose(f);
+    remove(tmp);
     return 0;
 }
 

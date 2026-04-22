@@ -20,7 +20,8 @@ def cmd_compute(args: argparse.Namespace) -> None:
 
     if args.output:
         with open(args.output, "w") as fh:
-            fh.write("\n".join(map(str, result)) + "\n")
+            for v in result:
+                fh.write(f"{v}\n")
         if not args.quiet:
             print(f"Written {summary} to {args.output!r}.")
     elif not args.quiet:

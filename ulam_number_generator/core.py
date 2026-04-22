@@ -11,6 +11,43 @@ from tqdm import tqdm
 from ._loader import get_lib
 
 
+class LazyUlamSequence:
+    def __init__(self, comp: "UlamComputer") -> None:
+        self._comp = comp
+
+    def __len__(self) -> int:
+        return self._comp.count
+
+    def __iter__(self) -> Iterator[int]:
+        for i in range(self._comp.count):
+            yield self._comp.get_ulam(i)
+
+    def __getitem__(self, key: object) -> int | list[int]:
+        cnt = self._comp.count
+        if isinstance(key, int):
+            if key < 0:
+                key += cnt
+            if not (0 <= key < cnt):
+                raise IndexError("index out of range")
+            return self._comp.get_ulam(key)
+        if isinstance(key, slice):
+            return [self._comp.get_ulam(i) for i in range(*key.indices(cnt))]
+        raise TypeError(f"indices must be integers or slices, not {type(key).__name__}")
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, (list, LazyUlamSequence)):
+            return NotImplemented
+        if len(self) != len(other):
+            return False
+        return all(a == b for a, b in zip(self, other))
+
+    def __repr__(self) -> str:
+        cnt = len(self)
+        if cnt <= 10:
+            return f"LazyUlamSequence({list(self)})"
+        return f"LazyUlamSequence([{self[0]}, {self[1]}, ..., {self[-1]}], len={cnt:,})"
+
+
 class UlamComputer:
     def __init__(self, track_pairs: bool = False) -> None:
         self._lib = get_lib()
@@ -60,11 +97,8 @@ class UlamComputer:
     def get_ulam(self, index: int) -> int:
         return int(self._lib.ulam_get(self._state, int(index)))
 
-    def get_all_ulams(self) -> list[int]:
-        cnt = self.count
-        if cnt == 0:
-            return []
-        return [int(self._lib.ulam_get(self._state, i)) for i in range(cnt)]
+    def get_all_ulams(self) -> LazyUlamSequence:
+        return LazyUlamSequence(self)
 
     def get_adjacent_pairs(self) -> list[tuple[int, int]]:
         out_count = ctypes.c_uint64(0)
@@ -152,7 +186,7 @@ def calculate_all_ulams(
     pairs_file: str | None = None,
     adjacent_pairs_file: str | None = None,
     verbose: bool = False,
-) -> list[int]:
+) -> LazyUlamSequence:
 
     comp: UlamComputer | None = None
     if load_file and os.path.exists(load_file):
