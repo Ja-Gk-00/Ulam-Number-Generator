@@ -5,17 +5,19 @@ from collections import Counter
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
 from matplotlib.ticker import FuncFormatter, MultipleLocator
 import numpy as np
 
-STEP  = 13.517831473
+STEP = 13.517831473
 MAGIC = 0x554C414D
-LAM   = 2.57144749847630
-WAVE  = 2.44344296778474
+LAM = 2.57144749847630
+WAVE = 2.44344296778474
 CHUNK = 2_000_000
+
 
 def _meta(path: str) -> tuple[int, int]:
     with open(path, "rb") as f:
@@ -36,11 +38,11 @@ def _ulam_chunks(path: str, limit: int | None = None):
             total = min(int(total), int(limit))
         pos = 0
         while pos < total:
-            n     = min(CHUNK, total - pos)
+            n = min(CHUNK, total - pos)
             a_off = np.frombuffer(f.read(n * 4), dtype=np.int32)
-            idx   = np.arange(pos + 1, pos + 1 + n, dtype=np.float64)
+            idx = np.arange(pos + 1, pos + 1 + n, dtype=np.float64)
             yield a_off.astype(np.int64) + (idx * STEP).astype(np.int64)
-            pos  += n
+            pos += n
 
 
 def _load_ulams_up_to(path: str, max_val: int) -> np.ndarray:
@@ -57,9 +59,11 @@ def _load_ulams_up_to(path: str, max_val: int) -> np.ndarray:
 def _progress(iterable, total: int, desc: str):
     try:
         from tqdm import tqdm
+
         return tqdm(iterable, total=total, desc=desc)
     except ImportError:
         return iterable
+
 
 def cmd_gaps(args: argparse.Namespace) -> None:
     from_json: str | None = getattr(args, "from_json", None)
@@ -109,26 +113,30 @@ def cmd_gaps(args: argparse.Namespace) -> None:
     xs2, ys2 = _band(SPLIT1 + 1, SPLIT2)
 
     fig, axes = plt.subplots(
-        3, 1, figsize=(16, 14),
+        3,
+        1,
+        figsize=(16, 14),
         gridspec_kw={"height_ratios": [3, 2.2, 1.5]},
     )
     fig.suptitle(
         f"Consecutive-gap distribution -- {subtitle}\n"
         f"Total pairs: {total_pairs:,}   Distinct gaps: {len(gaps):,}",
-        fontsize=13, y=0.99,
+        fontsize=13,
+        y=0.99,
     )
 
     ax1 = axes[0]
     if xs1:
-        ax1.bar(list(xs1), list(ys1), width=0.7,
-                color="steelblue", edgecolor="white", linewidth=0.4)
+        ax1.bar(
+            list(xs1), list(ys1), width=0.7, color="steelblue", edgecolor="white", linewidth=0.4
+        )
     if args.log:
         ax1.set_yscale("log")
         ax1.set_ylabel("Count (log)", fontsize=11)
     else:
         ax1.set_ylabel("Count", fontsize=11)
         ax1.yaxis.set_major_formatter(
-            FuncFormatter(lambda v, _: f"{v/1e6:.0f}M" if v >= 1e6 else f"{v:,.0f}")
+            FuncFormatter(lambda v, _: f"{v / 1e6:.0f}M" if v >= 1e6 else f"{v:,.0f}")
         )
     ax1.set_title(f"Gaps 1 - {SPLIT1}  (dominant peaks)", fontsize=11, loc="left", pad=4)
     ax1.set_xlabel("Gap  (U_{n+1} - U_{n})", fontsize=10)
@@ -139,12 +147,18 @@ def cmd_gaps(args: argparse.Namespace) -> None:
 
     ax2 = axes[1]
     if xs2:
-        ax2.bar(list(xs2), list(ys2), width=1.6,
-                color="darkorange", edgecolor="white", linewidth=0.3)
+        ax2.bar(
+            list(xs2), list(ys2), width=1.6, color="darkorange", edgecolor="white", linewidth=0.3
+        )
     ax2.set_yscale("log")
     ax2.set_ylabel("Count (log)", fontsize=11)
     ax2.set_xlabel("Gap  (U_{n+1} - U_{n})", fontsize=10)
-    ax2.set_title(f"Gaps {SPLIT1 + 1} - {SPLIT2}  (secondary structure, log y)", fontsize=11, loc="left", pad=4)
+    ax2.set_title(
+        f"Gaps {SPLIT1 + 1} - {SPLIT2}  (secondary structure, log y)",
+        fontsize=11,
+        loc="left",
+        pad=4,
+    )
     ax2.set_xlim(SPLIT1, SPLIT2 + 5)
     ax2.xaxis.set_major_locator(MultipleLocator(25))
     ax2.xaxis.set_minor_locator(MultipleLocator(5))
@@ -164,6 +178,7 @@ def cmd_gaps(args: argparse.Namespace) -> None:
     plt.close()
     print(f"Histogram   ->  {args.output!r}")
 
+
 def cmd_cosine(args: argparse.Namespace) -> None:
     count, max_computed = _meta(args.state)
     lam: float = args.lam
@@ -171,6 +186,7 @@ def cmd_cosine(args: argparse.Namespace) -> None:
 
     try:
         import mpmath  # type: ignore[import]
+
         mpmath.mp.dps = 50
         _lam_mp = mpmath.mpf(repr(lam))
         _confirm = lambda v: bool(mpmath.cos(_lam_mp * v) >= 0)
@@ -186,8 +202,8 @@ def cmd_cosine(args: argparse.Namespace) -> None:
     lam_f64 = np.float64(lam)
     n_chunks = (count + CHUNK - 1) // CHUNK
     exception_count = 0
-    known        = {2, 3, 47, 69}
-    known_found  : set[int] = set()
+    known = {2, 3, 47, 69}
+    known_found: set[int] = set()
     unexpected_examples: list[int] = []
 
     out = args.output
@@ -217,11 +233,13 @@ def cmd_cosine(args: argparse.Namespace) -> None:
     if unexpected_count == 0 and not missing:
         print("  OK  Matches known exceptions exactly: {2, 3, 47, 69}")
     if unexpected_count > 0:
-        print(f"  !!  {unexpected_count:,} unexpected exceptions"
-              f"  (first few): {unexpected_examples[:10]}")
+        print(
+            f"  !!  {unexpected_count:,} unexpected exceptions"
+            f"  (first few): {unexpected_examples[:10]}"
+        )
     if missing:
-        print(f"  !!  Known exceptions not found"
-              f" (outside computed range?): {sorted(missing)}")
+        print(f"  !!  Known exceptions not found (outside computed range?): {sorted(missing)}")
+
 
 def cmd_line(args: argparse.Namespace) -> None:
     count, _ = _meta(args.state)
@@ -251,7 +269,9 @@ def cmd_line(args: argparse.Namespace) -> None:
     nrows = 2 if has_heatmap else 1
     height_ratios = [4, 1] if has_heatmap else [1]
     fig, axes_all = plt.subplots(
-        nrows, 1, figsize=(18, 4),
+        nrows,
+        1,
+        figsize=(18, 4),
         gridspec_kw={"height_ratios": height_ratios},
         squeeze=False,
     )
@@ -271,8 +291,7 @@ def cmd_line(args: argparse.Namespace) -> None:
     label_n = min(25, n)
     for i, u in enumerate(arr[:label_n]):
         y = 0.68 if i % 2 == 0 else -0.68
-        ax.text(float(u), y, str(int(u)),
-                ha="center", va="center", fontsize=7)
+        ax.text(float(u), y, str(int(u)), ha="center", va="center", fontsize=7)
 
     ax.set_xlim(-1, max_val + 2)
     ax.set_ylim(-1.1, 1.1)
@@ -284,7 +303,8 @@ def cmd_line(args: argparse.Namespace) -> None:
         ax2 = axes_row[1]
         ax2.imshow(
             presence.reshape(1, -1),
-            cmap="plasma", aspect="auto",
+            cmap="plasma",
+            aspect="auto",
             extent=[0, max_val + 1, 0, 1],
             interpolation="nearest",
         )
@@ -299,23 +319,23 @@ def cmd_line(args: argparse.Namespace) -> None:
 
 
 def cmd_spiral(args: argparse.Namespace) -> None:
-    size    = args.size
+    size = args.size
     max_val = size * size
     print(f"Building {size}x{size} Ulam spiral  (covers 1 - {max_val:,}) ...")
 
-    ulams    = _load_ulams_up_to(args.state, max_val)
+    ulams = _load_ulams_up_to(args.state, max_val)
     ulam_set = set(ulams.tolist())
     print(f"  {len(ulam_set):,} Ulam numbers in range.")
 
-    grid    = np.zeros((size, size), dtype=np.uint8)
-    r, c    = size // 2, size // 2
+    grid = np.zeros((size, size), dtype=np.uint8)
+    r, c = size // 2, size // 2
     if 1 in ulam_set:
         grid[r, c] = 1
 
     # Spiral walk: right 1, up 1, left 2, down 2, right 3, up 3, ...
-    n      = 2
+    n = 2
     dr, dc = 0, 1
-    step   = 1
+    step = 1
 
     while n <= max_val:
         for _ in range(2):
@@ -344,6 +364,7 @@ def cmd_spiral(args: argparse.Namespace) -> None:
     plt.savefig(args.output, dpi=150)
     plt.close()
     print(f"Spiral      ->  {args.output!r}")
+
 
 def cmd_basis(args: argparse.Namespace) -> None:
     n: int = args.n
@@ -380,13 +401,16 @@ def cmd_basis(args: argparse.Namespace) -> None:
         f.writelines(f"{v}\n" for v in unreachable)
 
     print(f"  Ulam basis size : {n_loaded:,}")
-    print(f"  Reachable       : {n - n_unreachable:,} / {n:,}  ({100*(n - n_unreachable)/n:.4f} %)")
+    print(
+        f"  Reachable       : {n - n_unreachable:,} / {n:,}  ({100 * (n - n_unreachable) / n:.4f} %)"
+    )
     print(f"  Unreachable     : {n_unreachable:,}")
     if 0 < n_unreachable <= 20:
         print(f"  Full list       : {unreachable}")
     elif n_unreachable > 20:
         print(f"  First 10        : {unreachable[:10]}")
     print(f"Output          ->  {out!r}")
+
 
 def cmd_residue(args: argparse.Namespace) -> None:
     n_bins: int = args.bins
@@ -409,13 +433,18 @@ def cmd_residue(args: argparse.Namespace) -> None:
     _, ax = plt.subplots(figsize=(12, 6))
     ax.bar(bin_centers, probs, width=bw * 0.98, color="#555555", edgecolor="none")
 
-    for x in (1/3, 2/3):
+    for x in (1 / 3, 2 / 3):
         ax.axvline(x, color="#cc2222", linestyle="--", linewidth=1.0, alpha=0.75)
-    ax.axvspan(1/3, 2/3, alpha=0.05, color="green", zorder=0)
+    ax.axvspan(1 / 3, 2 / 3, alpha=0.05, color="green", zorder=0)
 
     density = count / max_computed
-    ax.axhline(density, color="steelblue", linestyle=":", linewidth=1.2,
-               label=f"Mean density ~={density:.5f}  (1 in {1/density:.2f})")
+    ax.axhline(
+        density,
+        color="steelblue",
+        linestyle=":",
+        linewidth=1.2,
+        label=f"Mean density ~={density:.5f}  (1 in {1 / density:.2f})",
+    )
     ax.legend(fontsize=10, loc="upper left")
 
     ax.set_xlim(0, 1)
@@ -441,10 +470,7 @@ def cmd_growth(args: argparse.Namespace) -> None:
     n_points: int = args.points
     step = max(1, count // n_points)
     actual_points = (count + step - 1) // step
-    print(
-        f"Sampling every {step:,}-th of {count:,} Ulam numbers "
-        f"-> {actual_points:,} points ..."
-    )
+    print(f"Sampling every {step:,}-th of {count:,} Ulam numbers -> {actual_points:,} points ...")
 
     idx_parts: list[np.ndarray] = []
     val_parts: list[np.ndarray] = []
@@ -466,8 +492,15 @@ def cmd_growth(args: argparse.Namespace) -> None:
 
     _, ax = plt.subplots(figsize=(12, 6))
     ax.plot(ns, us, color="steelblue", linewidth=0.6, label=r"$U_n$")
-    ax.plot(ns, trend, color="tomato", linewidth=1.0, linestyle="--", alpha=0.8,
-            label=f"Linear trend  $U_n \\approx {STEP} \\cdot n$")
+    ax.plot(
+        ns,
+        trend,
+        color="tomato",
+        linewidth=1.0,
+        linestyle="--",
+        alpha=0.8,
+        label=f"Linear trend  $U_n \\approx {STEP} \\cdot n$",
+    )
 
     if args.linear:
         ax.set_xscale("linear")
@@ -496,6 +529,7 @@ def cmd_growth(args: argparse.Namespace) -> None:
     plt.close()
     print(f"Growth plot ->  {args.output!r}")
 
+
 def main() -> None:
     p = argparse.ArgumentParser(
         prog="visualization_script.py",
@@ -503,40 +537,69 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     p.add_argument(
-        "-s", "--state", default="saved.bin", metavar="FILE",
+        "-s",
+        "--state",
+        default="saved.bin",
+        metavar="FILE",
         help="path to saved.bin  (default: saved.bin)",
     )
     sub = p.add_subparsers(dest="cmd", required=True)
 
     pg = sub.add_parser("gaps", help="histogram of consecutive gaps + JSON")
-    pg.add_argument("-o", "--output", default="ulam_gaps.png",  metavar="FILE")
-    pg.add_argument("--json", default=None, metavar="FILE",
-                    help="JSON output path  (default: <output>.json)")
-    pg.add_argument("--from-json", default=None, metavar="FILE",
-                    help="load pre-computed gap counts from FILE; skips state file")
-    pg.add_argument("--log", action="store_true",
-                    help="log-scale y axis on panel 1 (panels 2-3 always log)")
+    pg.add_argument("-o", "--output", default="ulam_gaps.png", metavar="FILE")
+    pg.add_argument(
+        "--json", default=None, metavar="FILE", help="JSON output path  (default: <output>.json)"
+    )
+    pg.add_argument(
+        "--from-json",
+        default=None,
+        metavar="FILE",
+        help="load pre-computed gap counts from FILE; skips state file",
+    )
+    pg.add_argument(
+        "--log", action="store_true", help="log-scale y axis on panel 1 (panels 2-3 always log)"
+    )
     pg.set_defaults(func=cmd_gaps)
 
     pc = sub.add_parser("cosine", help="find exceptions to the cosine inequality")
-    pc.add_argument("-s",default="saved.bin", metavar="FILE")
+    pc.add_argument("-s", default="saved.bin", metavar="FILE")
     pc.add_argument("-o", "--output", default="ulam_cosine_exceptions.txt", metavar="FILE")
-    pc.add_argument("--lam", type=float, default=LAM, metavar="FLOAT",
-                    help=f"lam in cos(lam*Un) < 0  (default: {LAM})")
-    pc.add_argument("--max-val", type=int, default=0, metavar="INT",
-                    help="only check Ulam numbers <= this value  (default: all)")
+    pc.add_argument(
+        "--lam",
+        type=float,
+        default=LAM,
+        metavar="FLOAT",
+        help=f"lam in cos(lam*Un) < 0  (default: {LAM})",
+    )
+    pc.add_argument(
+        "--max-val",
+        type=int,
+        default=0,
+        metavar="INT",
+        help="only check Ulam numbers <= this value  (default: all)",
+    )
     pc.set_defaults(func=cmd_cosine)
 
     pl = sub.add_parser("line", help="number-line visualization")
-    pl.add_argument("-o", "--output", default="ulam_line.png",  metavar="FILE")
-    pl.add_argument("-n", type=int, default=200, metavar="INT",
-                    help="how many Ulam numbers to show  (default: 200)")
+    pl.add_argument("-o", "--output", default="ulam_line.png", metavar="FILE")
+    pl.add_argument(
+        "-n",
+        type=int,
+        default=200,
+        metavar="INT",
+        help="how many Ulam numbers to show  (default: 200)",
+    )
     pl.set_defaults(func=cmd_line)
 
     ps = sub.add_parser("spiral", help="Ulam-spiral grid image")
     ps.add_argument("-o", "--output", default="ulam_spiral.png", metavar="FILE")
-    ps.add_argument("--size", type=int, default=500, metavar="INT",
-                    help="grid side length in cells  (default: 500)")
+    ps.add_argument(
+        "--size",
+        type=int,
+        default=500,
+        metavar="INT",
+        help="grid side length in cells  (default: 500)",
+    )
     ps.set_defaults(func=cmd_spiral)
 
     pr = sub.add_parser(
@@ -544,27 +607,36 @@ def main() -> None:
         help="P(Ulam | residue mod lambda) distribution -- replicates Gibbs (2015) Fig. 1",
     )
     pr.add_argument("-o", "--output", default="ulam_residue.png", metavar="FILE")
-    pr.add_argument("--bins", type=int, default=1200, metavar="INT",
-                    help="number of histogram bins  (default: 1200, same as Gibbs paper)")
+    pr.add_argument(
+        "--bins",
+        type=int,
+        default=1200,
+        metavar="INT",
+        help="number of histogram bins  (default: 1200, same as Gibbs paper)",
+    )
     pr.set_defaults(func=cmd_residue)
 
     pg2 = sub.add_parser("growth", help="plot U_n vs n growth curve")
     pg2.add_argument("-o", "--output", default="ulam_growth.png", metavar="FILE")
-    pg2.add_argument("--points", type=int, default=10_000, metavar="INT",
-                     help="number of sample points to plot  (default: 10000)")
+    pg2.add_argument(
+        "--points",
+        type=int,
+        default=10_000,
+        metavar="INT",
+        help="number of sample points to plot  (default: 10000)",
+    )
     scale_grp = pg2.add_mutually_exclusive_group()
-    scale_grp.add_argument("--log", action="store_true",
-                           help="log y-axis only")
-    scale_grp.add_argument("--linear", action="store_true",
-                           help="fully linear axes  (default is log-log)")
+    scale_grp.add_argument("--log", action="store_true", help="log y-axis only")
+    scale_grp.add_argument(
+        "--linear", action="store_true", help="fully linear axes  (default is log-log)"
+    )
     pg2.set_defaults(func=cmd_growth)
 
     pb = sub.add_parser(
         "basis",
         help="find integers in [1, N] not expressible as sums of distinct Ulam numbers",
     )
-    pb.add_argument("n", type=int, metavar="N",
-                    help="check all integers in [1, N]")
+    pb.add_argument("n", type=int, metavar="N", help="check all integers in [1, N]")
     pb.add_argument("-o", "--output", default="ulam_basis_unreachable.txt", metavar="FILE")
     pb.set_defaults(func=cmd_basis)
 
