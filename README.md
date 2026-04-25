@@ -4,7 +4,7 @@ Fast Ulam-number generator. The heavy lifting is done by a C shared library
 ;Python provides a clean high-level API anda full CLI.
 
 A number `k` is **Ulam** if it can be written as the sum of two distinct Ulam
-numbers in exactly one way. The sequence starts `1, 2, 3, 4, 6, 8, 11, 13 …`
+numbers in exactly one way. The sequence starts `1, 2, 3, 4, 6, 8, 11, 13 ...`
 ([OEIS A002858](https://oeis.org/A002858)).
 
 ---
@@ -137,7 +137,7 @@ Exits `0` if N is Ulam, `1` otherwise.
 
 | Option | Description |
 |--------|-------------|
-| `--state FILE` | Use saved state for O(1) lookup when N ≤ max\_computed |
+| `--state FILE` | Use saved state for O(1) lookup when N <= max\_computed |
 
 ```bash
 python -m ulam_number_generator check 47 --state ck.bin
@@ -250,13 +250,13 @@ comp.get_ulam(1)           # 2
 comp.get_ulam(99_999)      # 1_351_223  (the 100,000th Ulam number)
 
 # Get all Ulam numbers as a list
-comp.get_all_ulams()       # [1, 2, 3, 4, 6, 8, 11, …]
+comp.get_all_ulams()       # [1, 2, 3, 4, 6, 8, 11, ...]
 
 # Adjacent-integer pairs (n, n+1) - always available
-comp.get_adjacent_pairs()  # [(1,2), (2,3), (3,4), (47,48), …]
+comp.get_adjacent_pairs()  # [(1,2), (2,3), (3,4), (47,48), ...]
 
 # Sequence-consecutive pairs (U_k, U_{k+1}) - only if saved with --pairs
-comp.get_pairs()           # [(1,2), (2,3), (3,4), (4,6), (6,8), …]
+comp.get_pairs()           # [(1,2), (2,3), (3,4), (4,6), (6,8), ...]
 
 # Extend the computation and re-save
 comp.compute_up_to(2_000_000_000)
@@ -293,6 +293,139 @@ Files from older runs are accepted automatically:
 | V2 | `uint8 sc[]` (original sieve) | Loaded and converted |
 | V3 | `uint64 ulams[]` + bitset | Loaded and converted |
 | V4 | `int32 a_off[]` + bitset *(current)* | Native |
+
+---
+
+## Visualization
+
+`visualization_script.py` reads a `saved.bin` file directly and produces plots.  
+No need to load the full state into memory - all commands stream data in chunks.
+
+```
+python visualization_script.py [-s FILE] <command> [options]
+```
+
+| Global flag | Default | Description |
+|-------------|---------|-------------|
+| `-s / --state FILE` | `saved.bin` | Path to the state file |
+
+### Commands
+
+**`gaps`** - histogram of consecutive gaps `U_{n+1} - U_n` + JSON dictionary
+
+```bash
+python visualization_script.py gaps [-o FILE] [--json FILE] [--log]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-o FILE` | `ulam_gaps.png` | Output image |
+| `--json FILE` | `<output>.json` | Gap-count dictionary |
+| `--log` | off | Log-scale y axis |
+
+---
+
+**`cosine`** - find exceptions to `cos(lam * U_n) < 0` (lam = 2.57144749847630); outputs Ulam numbers where the cosine is not strictly negative (`>= 0`); iterates `saved.bin` in chunks without loading it fully into memory.
+
+```bash
+python visualization_script.py cosine -s saved.bin [-o FILE] [--lam FLOAT] [--max-val INT]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-s FILE` | `saved.bin` | State file to iterate through (streamed, not loaded into memory) |
+| `-o FILE` | `ulam_cosine_exceptions.txt` | Output text file |
+| `--lam FLOAT` | `2.57144749847630` | Value of lambda in `cos(lambda * U_n) < 0` |
+| `--max-val INT` | `0` (all) | Only check Ulam numbers up to this value |
+
+---
+
+**`line`** - number-line plot of the first N Ulam numbers
+
+```bash
+python visualization_script.py line [-n INT] [-o FILE]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-n INT` | `200` | How many Ulam numbers to plot |
+| `-o FILE` | `ulam_line.png` | Output image |
+
+---
+
+**`spiral`** - Ulam-spiral grid image (marks cells whose value is Ulam)
+
+```bash
+python visualization_script.py spiral [--size INT] [-o FILE]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--size INT` | `500` | Grid side length in cells; covers 1 - size^2 of numbers |
+| `-o FILE` | `ulam_spiral.png` | Output image |
+
+---
+
+**`basis`** - find all integers in `[1, N]` that cannot be expressed as a sum of distinct Ulam numbers (analogous to Zeckendorf representation for Fibonacci numbers); writes them one per line to a text file.
+
+```bash
+python visualization_script.py [-s FILE] basis N [-o FILE]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `N` | *(required)* | Check every integer in `[1, N]` |
+| `-o FILE` | `ulam_basis_unreachable.txt` | Output file (one unreachable integer per line) |
+| `-s FILE` | `saved.bin` | State file supplying the Ulam basis |
+
+---
+
+**`residue`** - replicate Gibbs (2015) Fig. 1: plot P(Ulam | residue mod $\lambda$) distribution, where $\lambda = 2\pi/\alpha \approx 2.44344296778474$ is the wavelength of the Ulam cosine signal.
+
+```bash
+python visualization_script.py residue [-o FILE] [--bins INT]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-o FILE` | `ulam_residue.png` | Output image |
+| `--bins INT` | `200` | Number of histogram bins across the range 0 to $\lambda$ |
+
+---
+
+**`growth`** - plot U_n vs n growth curve, sampled evenly from the full sequence.
+
+```bash
+python visualization_script.py growth [-o FILE] [--points INT] [--log | --linear]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-o FILE` | `ulam_growth.png` | Output image |
+| `--points INT` | `10000` | Number of evenly-spaced sample points |
+| `--log` | off | Log y-axis only (linear x) |
+| `--linear` | off | Fully linear axes |
+| *(default)* | - | Log-log axes |
+
+A red dashed line shows the linear trend $U_n \approx 13.518 * n $ for comparison.
+
+---
+
+**Examples**
+
+```bash
+python visualization_script.py gaps --log
+python visualization_script.py gaps --from-json ulam_gaps.json
+python visualization_script.py line -n 1000 -o line_1k.png
+python visualization_script.py spiral --size 700 -o spiral_700.png
+python visualization_script.py cosine -s saved.bin --lam 2.57144749847630
+python visualization_script.py cosine -s saved.bin --max-val 1000000000
+python visualization_script.py basis 1000000
+python visualization_script.py -s other.bin basis 500000 -o missing.txt
+python visualization_script.py residue --bins 300
+python visualization_script.py growth --points 5000 --linear
+python visualization_script.py -s saved.bin growth -o growth_loglog.png
+```
 
 ---
 
